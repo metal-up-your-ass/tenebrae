@@ -12,7 +12,7 @@
 <!-- ==BEGIN BODY== (plugin engineer: replace this block with What it is / Features / Signal flow / Roadmap) -->
 ## What it is
 
-Tenebrae is a high-gain rhythm-guitar distortion built on JUCE 8, aimed squarely at the core "chug" tone of symphonic metal: a tightening high-pass ahead of a cascade of three oversampled waveshaper stages, each progressively tighter and darker than the last, followed by a passive-style 3-band tone stack for shaping the result. It has no cabinet simulation of its own - pair it with a cab sim/IR loader for the final voicing.
+Tenebrae is a high-gain rhythm-guitar distortion built on JUCE 8, aimed squarely at the core "chug" tone of modern metal: a tightening high-pass ahead of a cascade of three oversampled waveshaper stages, each progressively tighter and darker than the last, followed by a passive-style 3-band tone stack for shaping the result. It has no cabinet simulation of its own - pair it with a cab sim/IR loader for the final voicing.
 
 ## Features
 
