@@ -45,9 +45,22 @@ public:
     // Safe to call from the audio thread (e.g. on playback stop/loop).
     void reset();
 
-    // Processes `block` in place. `block` must have at most the maximum
-    // sample/channel counts declared to prepare(); a zero-sample block is a
-    // safe no-op. No allocation occurs here.
+    // Processes `block` in place. A zero-sample block is a safe no-op. No
+    // allocation occurs here.
+    //
+    // `block` may contain MORE samples than the maximumBlockSize declared to
+    // prepare() (some hosts occasionally hand over an oversized block -
+    // offline bounce/render, buffer-size renegotiation - see GitHub issue
+    // #13): the oversampler's internal buffer, driveGainScratch/
+    // hostRateGainScratch (see RealtimeGain.h), and every other
+    // prepare()-sized buffer in this engine are all sized to exactly that
+    // declared maximum, and juce::dsp::Oversampling's own bounds check on an
+    // oversized block is a debug-only jassert (compiles to nothing in
+    // Release). process() detects this and transparently loops over
+    // prepare()-sized chunks via processChunk() instead of passing the
+    // oversized block straight through, so the "never process more than
+    // maximumBlockSize samples in one internal call" invariant holds
+    // regardless of what the caller hands over.
     void process (juce::dsp::AudioBlock<float>& block);
 
     // Parameter setters, in real units (dB, Hz, 0-1 proportion). Safe to
@@ -79,12 +92,26 @@ public:
     int getLatencySamples() const noexcept { return latencySamples; }
 
 private:
+    // Processes a single chunk of at most maxPreparedBlockSamples samples -
+    // the actual signal path, factored out of process() so the oversized-
+    // block guard there (see process()'s doc comment and GitHub issue #13)
+    // can loop over it. `chunk` must not exceed maxPreparedBlockSamples.
+    void processChunk (juce::dsp::AudioBlock<float>& chunk);
+
     static constexpr int oversamplingFactorPow2 = 3; // 2^3 = 8x oversampling
     static constexpr double smoothingTimeSeconds = 0.05;
     // Butterworth (maximally-flat) Q for the Tight HPF.
     static constexpr float filterQ = juce::MathConstants<float>::sqrt2 / 2.0f;
 
     double sampleRate = 44100.0;
+
+    // The maximumBlockSize declared to prepare() - i.e. the largest sample
+    // count the oversampler's internal buffer (and every other
+    // prepare()-sized buffer in this engine) was actually allocated for.
+    // process() chunks any larger incoming block down to this size before
+    // calling processChunk() - see process()'s doc comment and GitHub issue
+    // #13. Always >= 1 once prepare() has run.
+    size_t maxPreparedBlockSamples = 0;
 
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> tightHighPass;
 

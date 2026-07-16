@@ -73,6 +73,12 @@ void TenebraeEngine::prepare (const juce::dsp::ProcessSpec& spec)
 {
     sampleRate = spec.sampleRate;
 
+    // See process()'s doc comment and GitHub issue #13: bounds the chunk
+    // size process() ever hands to processChunk(), so an oversized incoming
+    // block never reaches the oversampler/scratch buffers below at more
+    // than the size they were actually allocated for.
+    maxPreparedBlockSamples = juce::jmax (static_cast<size_t> (1), static_cast<size_t> (spec.maximumBlockSize));
+
     tightHighPass.prepare (spec);
 
     brightShelf.prepare (spec);
@@ -280,6 +286,34 @@ void TenebraeEngine::process (juce::dsp::AudioBlock<float>& block)
 
     if (numSamples == 0)
         return;
+
+    if (numSamples <= maxPreparedBlockSamples)
+    {
+        processChunk (block);
+        return;
+    }
+
+    // Oversized block (larger than the maximumBlockSize declared to
+    // prepare()) - see process()'s doc comment and GitHub issue #13. Chunk
+    // it down rather than truncating: truncating would leave the excess
+    // samples completely unprocessed (raw input passed through with no
+    // Tight/Gain/cascade/tone-stack/Level/Mix applied at all), which is a
+    // worse and more surprising failure mode than the extra CPU cost of an
+    // additional chunk or two.
+    size_t position = 0;
+
+    while (position < numSamples)
+    {
+        const auto chunkSize = juce::jmin (maxPreparedBlockSamples, numSamples - position);
+        auto chunk = block.getSubBlock (position, chunkSize);
+        processChunk (chunk);
+        position += chunkSize;
+    }
+}
+
+void TenebraeEngine::processChunk (juce::dsp::AudioBlock<float>& block)
+{
+    const auto numSamples = block.getNumSamples();
 
     // Coefficient recomputation involves trig calls, so Tight is smoothed
     // and re-derived once per block rather than per sample - a standard
